@@ -4,6 +4,6 @@ To provision on Rackspace:
 * Enter rescue mode (Actions > Rescue Mode), note the password
 * Wait for host to come up, then run:
 
-  fab -u root -H [ip] run_all:http://location/of/coreos.bin.gz
+  fab -u root -H 1.2.3.4 run_all:http://location/of/coreos.bin.gz
 
 * After that finishes, exit rescue mode
