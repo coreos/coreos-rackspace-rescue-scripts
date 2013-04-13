@@ -12,11 +12,16 @@ def burn_image():
 
 def setup_grub():
   run('mkdir -p /mnt/stateful')
+  run('mkdir -p /mnt/root')
   run('mount /dev/xvdb1 /mnt/stateful')
+  run('mount /dev/xvdb3 /mnt/root')
   run('mkdir -p /mnt/stateful/boot/grub')
   put('files/menu.lst', '/mnt/stateful/boot/grub/menu.lst')
+  run('cp /mnt/root/boot/vmlinuz /mnt/stateful/boot/vmlinuz')
   run('umount /mnt/stateful')
+  run('umount /mnt/root')
   run('rm -r /mnt/stateful')
+  run('rm -r /mnt/root')
 
 def run_all(image_loc):
   setup_host()
