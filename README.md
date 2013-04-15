@@ -1,9 +1,24 @@
+To get going, you need fabric and libcloud installed:
+
+  pip -r requirements.txt
+
 To provision on Rackspace:
 
-* Boot a new Debian cloud server
-* Enter rescue mode (Actions > Rescue Mode), note the password
-* Wait for host to come up, then run:
+* cp dist/config.py to config.py, edit all fields as needed
 
-  fab -u root -H 1.2.3.4 run_all:http://location/of/coreos.bin.gz
+  fab run_all:hostname,http://location/of/coreos.bin.gz
 
-* After that finishes, exit rescue mode
+* Should be booted with that image!
+
+* If booting failed, try this to see what state the node is in:
+
+  fab show_node:hostname
+
+* To delete the node:
+
+  fab destroy_node:hostname
+
+* To test your fabric conductivity (should show uname):
+
+  fab test_node:hostname
+
