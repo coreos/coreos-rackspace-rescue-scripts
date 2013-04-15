@@ -1,4 +1,4 @@
-from fabric.api import run, put, env, execute
+from fabric.api import run, put, env, execute, cd
 
 from config import config
 env.password = config['host_pass']
@@ -27,9 +27,36 @@ def setup_grub():
   run('rm -r /mnt/stateful')
   run('rm -r /mnt/root')
 
+def setup_networking():
+  run('mkdir -p /mnt/root')
+  run('mount /dev/xvdb3 /mnt/root')
+
+  ip = run('ifconfig eth0 |grep "inet "|awk \'{print $2}\'|awk -F":" \'{print $2}\'')
+  netmask = run('ifconfig eth0 |grep "inet "|awk \'{print $4}\'|awk -F":" \'{print $2}\'')
+  gw = run('route -n | grep eth0 | grep "^0.0" | awk \'{ print $2 }\'')
+  print ip, netmask, gw
+  hack_network_script = """#!/bin/bash
+ifconfig eth0 %s netmask %s
+route add default gw %s """ % (ip, netmask, gw)
+
+
+  run('echo \'%s\' > /mnt/root/sbin/coreos_rackspace_networking_hack.sh' % hack_network_script)
+  run('chmod +x /mnt/root/sbin/coreos_rackspace_networking_hack.sh')
+ 
+  put('files/usr/lib/systemd/system/rackspace-networking-hack.service', 
+      '/mnt/root/usr/lib/systemd/system/rackspace-networking-hack.service')
+
+  with cd('/mnt/root/usr/lib/systemd/system/basic.target.wants/'):
+    run('ln -s ../rackspace-networking-hack.service ./rackspace-networking-hack.service')
+
+  run('rm -f /mnt/root/usr/lib/systemd/system/multi-user.target.wants/dhcpcd.service')
+
+  run('umount /mnt/root')
+  run('rm -r /mnt/root')
+  
 def run_all(name, image_loc):
   node = create_node(name)
-  #rescue_node(name)
+  rescue_node(name)
 
   # fabric stuff
   _set_hosts_by_node(node)
@@ -37,6 +64,7 @@ def run_all(name, image_loc):
   execute(fetch_image, image_loc)
   execute(burn_image)
   execute(setup_grub)
+  execute(setup_networking)
 
   unrescue_node(name)
 

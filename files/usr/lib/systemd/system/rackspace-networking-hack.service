@@ -1,0 +1,11 @@
+[Unit]
+Description=Hack to get networking from rescue image
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/sbin/coreos_rackspace_networking_hack.sh
+StandardOutput=journal+console
+
+[Install]
+Wanted=basic.target
