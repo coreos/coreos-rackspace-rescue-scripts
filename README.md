@@ -12,7 +12,7 @@ To get going, you need fabric and libcloud installed, and to setup your config.p
 
 To provision on Rackspace:
 
-* cp dist/config.py to config.py, edit all fields as needed
+* This should do it all! It will take a few minutes to run.
 
         fab run_all:hostname,http://location/of/coreos.bin.gz
 
