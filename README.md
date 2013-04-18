@@ -1,6 +1,14 @@
-To get going, you need fabric and libcloud installed:
+To get going, you need fabric and libcloud installed, and to setup your config.py:
+
+* Install depedencies:
 
         pip -r requirements.txt
+
+* Setup config.py
+
+        cp dist/config.py .
+
+* Then edit config.py to add your Rackspace API keys and default root password
 
 To provision on Rackspace:
 
