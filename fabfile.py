@@ -109,7 +109,7 @@ def create_node(name):
 
   images = driver.list_images() 
   sizes = driver.list_sizes()
-  image = [i for i in images if i.name == 'Debian 6 (Squeeze)'][0]
+  image = [i for i in images if i.name == 'Debian 6.06 (Squeeze)'][0]
   size = [s for s in sizes if s.ram == 512][0]
   node = driver.create_node(name=name, size=size, image=image)
   nodes = driver.wait_until_running(nodes=[node])
