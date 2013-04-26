@@ -50,6 +50,7 @@ route add default gw %s """ % (ip, netmask, gw)
     run('ln -s ../rackspace-networking-hack.service ./rackspace-networking-hack.service')
 
   run('rm -f /mnt/root/usr/lib/systemd/system/multi-user.target.wants/dhcpcd.service')
+  run('cp /etc/resolv.conf /mnt/root/etc/resolv.conf')
 
   run('umount /mnt/root')
   run('rm -r /mnt/root')
