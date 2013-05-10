@@ -56,6 +56,7 @@ route add default gw %s """ % (ip, netmask, gw)
     run('ln -s ../rackspace-networking-hack.service ./rackspace-networking-hack.service')
 
   run('rm -f /mnt/root/usr/lib/systemd/system/multi-user.target.wants/dhcpcd.service')
+  run('cp /etc/resolv.conf /mnt/root/etc/resolv.conf')
 
   run('umount /mnt/root')
   run('rm -r /mnt/root')
@@ -143,7 +144,7 @@ def create_node(name):
 
   images = driver.list_images() 
   sizes = driver.list_sizes()
-  image = [i for i in images if i.name == 'Ubuntu 12.04 LTS (Precise Pangolin)'][0]
+  image = [i for i in images if i.name == 'Debian 6.06 (Squeeze)'][0]
   size = [s for s in sizes if s.ram == 512][0]
   node = driver.create_node(name=name, size=size, image=image)
   nodes = driver.wait_until_running(nodes=[node])

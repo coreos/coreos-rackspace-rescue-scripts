@@ -2,7 +2,7 @@ To get going, you need fabric and libcloud installed, and to setup your config.p
 
 * Install depedencies:
 
-        pip -r requirements.txt
+        pip install -r requirements.txt
 
 * Setup config.py
 
