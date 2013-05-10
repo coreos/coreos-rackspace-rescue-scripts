@@ -1,8 +1,14 @@
 from fabric.api import run, put, env, execute, cd
 
+from fabric.operations import open_shell
+
 from config import config
 env.password = config['host_pass']
 env.user = 'root'
+
+def ssh(name):
+  _set_hosts_by_name(name)
+  execute(open_shell)
 
 def setup_host():
   run('apt-get -y install parted')
@@ -66,7 +72,31 @@ def run_all(name, image_loc):
   execute(setup_grub)
   execute(setup_networking)
 
-  unrescue_node(name)
+  #unrescue_node(name)
+
+def run_from_ami(name):
+  _set_hosts_by_name(name)
+
+  # pull image from ami
+  execute(fetch_from_ami)
+
+  execute(burn_image)
+  execute(setup_grub)
+  execute(setup_networking)
+
+def build_ami(name, image_loc):
+  _set_hosts_by_name(name)
+#  execute(fetch_image, image_loc)
+  execute(burn_image)
+  execute(setup_grub_ami)
+
+  
+def fetch_from_ami():
+  execute(put, config['aws_pk'], '/tmp/aws-pk.pem')
+  execute(run, 'mkdir -p /tmp/coreos-ami')
+#  execute(run, 'ec2-download-bundle -b coreos-img -a %s -s %s -k /tmp/aws-pk.pem -m chromiumos_image.bin.manifest.xml -d /tmp/coreos-ami/' % (config['aws_access_key'], config['aws_secret_key']))
+  execute(run, 'ec2-unbundle -k /tmp/aws-pk.pem -m /tmp/coreos-ami/chromiumos_image.bin.manifest.xml -s /tmp/coreos-ami/ -d /tmp/coreos-ami/')
+  execute(run, 'mv /tmp/coreos-ami/chromiumos_image.bin /tmp/coreos.bin')
 
 # libcloud helper to setup libcloud driver
 def _get_rack_driver():
@@ -89,6 +119,10 @@ def _set_hosts_by_node(node):
     except socket.error:
       pass
 
+def _set_hosts_by_name(name):
+  driver = _get_rack_driver()
+  nodes = [x for x in driver.list_nodes() if x.name == name]
+  _set_hosts_by_node(nodes[0])
 
 # test libcloud/fabric integration
 def test_node(name):
@@ -109,7 +143,7 @@ def create_node(name):
 
   images = driver.list_images() 
   sizes = driver.list_sizes()
-  image = [i for i in images if i.name == 'Debian 6 (Squeeze)'][0]
+  image = [i for i in images if i.name == 'Ubuntu 12.04 LTS (Precise Pangolin)'][0]
   size = [s for s in sizes if s.ram == 512][0]
   node = driver.create_node(name=name, size=size, image=image)
   nodes = driver.wait_until_running(nodes=[node])
