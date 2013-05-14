@@ -35,7 +35,7 @@ def setup_grub():
 
 def setup_networking():
   run('mkdir -p /mnt/root')
-  run('mount /dev/xvdb3 /mnt/root')
+  run('mount /dev/xvdb4 /mnt/root')
 
   ip = run('ifconfig eth0 |grep "inet "|awk \'{print $2}\'|awk -F":" \'{print $2}\'')
   netmask = run('ifconfig eth0 |grep "inet "|awk \'{print $4}\'|awk -F":" \'{print $2}\'')
@@ -60,7 +60,16 @@ route add default gw %s """ % (ip, netmask, gw)
 
   run('umount /mnt/root')
   run('rm -r /mnt/root')
+
+def setup_nova_agent():
+  run('mkdir -p /mnt/root')
+  run('mount /dev/xvdb4 /mnt/root')
+
+  run('cp -r /usr/share/nova-agent /mnt/root/usr/share/nova-agent')
   
+  run('umount /mnt/root')
+  run('rm -r /mnt/root')
+
 def run_all(name, image_loc):
   node = create_node(name)
   rescue_node(name)
@@ -70,7 +79,7 @@ def run_all(name, image_loc):
   execute(setup_host)
   execute(fetch_image, image_loc)
   execute(burn_image)
-  execute(setup_grub)
+  #execute(setup_grub)
   execute(setup_networking)
 
   #unrescue_node(name)
