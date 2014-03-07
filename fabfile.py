@@ -1,8 +1,9 @@
-from fabric.api import run, put, env, execute, cd
+from fabric.api import run, put, env, execute, cd, sudo
 
 from fabric.operations import open_shell
 
 from config import config
+import time
 env.password = config['host_pass']
 env.user = 'root'
 
@@ -11,109 +12,53 @@ def ssh(name):
   execute(open_shell)
 
 def setup_host():
-  run('apt-get -y install parted')
+  run('apt-get -y install parted bzip2')
 
-def fetch_image(image_loc):
-  run('curl %s | gunzip > /tmp/coreos.bin' % (image_loc))
+def fetch_image_dd(image_loc):
+  run('curl %s | bunzip2 | dd of=/dev/xvdb bs=128M' % (image_loc))
 
-def burn_image():
-  run('dd if=/tmp/coreos.bin of=/dev/xvdb bs=128M')
-  run('partprobe')
-
-def setup_grub():
-  run('mkdir -p /mnt/stateful')
-  run('mkdir -p /mnt/root')
-  run('mount /dev/xvdb1 /mnt/stateful')
-  run('mount /dev/xvdb3 /mnt/root')
-  run('mkdir -p /mnt/stateful/boot/grub')
-  put('files/menu.lst', '/mnt/stateful/boot/grub/menu.lst')
-  run('cp /mnt/root/boot/vmlinuz /mnt/stateful/boot/vmlinuz')
-  run('umount /mnt/stateful')
-  run('umount /mnt/root')
-  run('rm -r /mnt/stateful')
-  run('rm -r /mnt/root')
-
-def setup_networking():
-  run('mkdir -p /mnt/root')
-  run('mount /dev/xvdb4 /mnt/root')
-
-  ip = run('ifconfig eth0 |grep "inet "|awk \'{print $2}\'|awk -F":" \'{print $2}\'')
-  netmask = run('ifconfig eth0 |grep "inet "|awk \'{print $4}\'|awk -F":" \'{print $2}\'')
-  gw = run('route -n | grep eth0 | grep "^0.0" | awk \'{ print $2 }\'')
-  print ip, netmask, gw
-  hack_network_script = """#!/bin/bash
-ifconfig eth0 %s netmask %s
-route add default gw %s """ % (ip, netmask, gw)
-
-
-  run('echo \'%s\' > /mnt/root/sbin/coreos_rackspace_networking_hack.sh' % hack_network_script)
-  run('chmod +x /mnt/root/sbin/coreos_rackspace_networking_hack.sh')
- 
-  put('files/usr/lib/systemd/system/rackspace-networking-hack.service', 
-      '/mnt/root/usr/lib/systemd/system/rackspace-networking-hack.service')
-
-  with cd('/mnt/root/usr/lib/systemd/system/basic.target.wants/'):
-    run('ln -s ../rackspace-networking-hack.service ./rackspace-networking-hack.service')
-
-  run('rm -f /mnt/root/usr/lib/systemd/system/multi-user.target.wants/dhcpcd.service')
-  run('cp /etc/resolv.conf /mnt/root/etc/resolv.conf')
-
-  run('umount /mnt/root')
-  run('rm -r /mnt/root')
-
-def setup_nova_agent():
-  run('mkdir -p /mnt/root')
-  run('mount /dev/xvdb4 /mnt/root')
-
-  run('cp -r /usr/share/nova-agent /mnt/root/usr/share/nova-agent')
-  
-  run('umount /mnt/root')
-  run('rm -r /mnt/root')
-
-def run_all(name, image_loc):
+def run_all(image_name, image_loc):
+  name = 'auto'
   node = create_node(name)
   rescue_node(name)
 
   # fabric stuff
   _set_hosts_by_node(node)
   execute(setup_host)
-  execute(fetch_image, image_loc)
-  execute(burn_image)
-  #execute(setup_grub)
-  execute(setup_networking)
+  execute(fetch_image_dd, image_loc)
 
-  #unrescue_node(name)
+  unrescue_node(name)
+#  new_node = save_image(name, image_name)
 
-def run_from_ami(name):
-  _set_hosts_by_name(name)
+  # will try to ssh to the machine and run uname
+  # will only work if the default password is falkor
+#  _set_hosts_by_node(new_node)
+#  execute(uname)
 
-  # pull image from ami
-  execute(fetch_from_ami)
 
-  execute(burn_image)
-  execute(setup_grub)
-  execute(setup_networking)
+def save_and_create(base_name, image_name):
+  image = save_image(base_name, image_name)
+  while True:
+    try:
+      new_node = create_node(image_name, image)
+      return new_node
+    except Exception:
+      print "waiting on image to be ready..."
+      time.sleep(10)
 
-def build_ami(name, image_loc):
-  _set_hosts_by_name(name)
-#  execute(fetch_image, image_loc)
-  execute(burn_image)
-  execute(setup_grub_ami)
-
-  
-def fetch_from_ami():
-  execute(put, config['aws_pk'], '/tmp/aws-pk.pem')
-  execute(run, 'mkdir -p /tmp/coreos-ami')
-#  execute(run, 'ec2-download-bundle -b coreos-img -a %s -s %s -k /tmp/aws-pk.pem -m chromiumos_image.bin.manifest.xml -d /tmp/coreos-ami/' % (config['aws_access_key'], config['aws_secret_key']))
-  execute(run, 'ec2-unbundle -k /tmp/aws-pk.pem -m /tmp/coreos-ami/chromiumos_image.bin.manifest.xml -s /tmp/coreos-ami/ -d /tmp/coreos-ami/')
-  execute(run, 'mv /tmp/coreos-ami/chromiumos_image.bin /tmp/coreos.bin')
+def save_image(name, image_name):
+  driver = _get_rack_driver()
+  nodes = [x for x in driver.list_nodes() if x.name == name]
+  nodes = driver.wait_until_running(nodes=nodes)
+  node = nodes[0][0]
+  return driver.ex_save_image(node, image_name)
 
 # libcloud helper to setup libcloud driver
 def _get_rack_driver():
   import libcloud.compute.providers
   import libcloud.security
   libcloud.security.CA_CERTS_PATH.append('dist/cacert.pem')
-  CompRackspace = libcloud.compute.providers.get_driver(libcloud.compute.types.Provider.RACKSPACE_NOVA_DFW)
+  CompRackspace = libcloud.compute.providers.get_driver(libcloud.compute.types.Provider.RACKSPACE_NOVA_ORD)
   compdriver = CompRackspace(config['api_user'], config['api_key'],
     ex_force_auth_url='https://identity.api.rackspacecloud.com/v2.0/',
     ex_force_auth_version='2.0')
@@ -129,6 +74,7 @@ def _set_hosts_by_node(node):
     except socket.error:
       pass
 
+
 def _set_hosts_by_name(name):
   driver = _get_rack_driver()
   nodes = [x for x in driver.list_nodes() if x.name == name]
@@ -143,18 +89,20 @@ def test_node(name):
 
 def uname():
   run('uname -a')
+  run('grep VERSION /etc/lsb-release')
 
 # libcloud specific functions
-def create_node(name):
+def create_node(name, image=None):
   driver = _get_rack_driver()
   nodes = [x for x in driver.list_nodes() if x.name == name]
   if len(nodes) > 0 and nodes[0].name == name:
     return nodes[0]
 
-  images = driver.list_images() 
   sizes = driver.list_sizes()
-  image = [i for i in images if i.name == 'Debian 6.06 (Squeeze)'][0]
   size = [s for s in sizes if s.ram == 512][0]
+  if image is None:
+    images = driver.list_images() 
+    image = [i for i in images if i.name == 'Debian 6.06 (Squeeze)'][0]
   node = driver.create_node(name=name, size=size, image=image)
   nodes = driver.wait_until_running(nodes=[node])
   return nodes[0][0]
@@ -167,7 +115,6 @@ def show_node(name):
   print nodes[0]
 
 def rescue_node(name):
-  import time
   from libcloud.compute.types import NodeState
   driver = _get_rack_driver()
   nodes = [x for x in driver.list_nodes() if x.name == name]
